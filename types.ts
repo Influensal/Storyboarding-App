@@ -10,3 +10,10 @@ export interface Scene {
   vo: string; // Voiceover
   shots: Shot[];
 }
+
+export interface Storyboard {
+  id: string;
+  name: string;
+  scenes: Scene[];
+  lastModified: number;
+}
