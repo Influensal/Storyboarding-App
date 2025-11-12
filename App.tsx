@@ -3,6 +3,7 @@ import { Scene, Storyboard } from './types';
 import AddSceneForm from './components/AddSceneForm';
 import SceneCard from './components/SceneCard';
 import LoadStoryboardModal from './components/LoadStoryboardModal';
+import CompilationModal from './components/CompilationModal';
 
 const INITIAL_SCENES: Scene[] = [
     {
@@ -43,333 +44,333 @@ const DEFAULT_STORYBOARD: Storyboard = {
 };
 
 
+// Fix: Defined an interface for `aistudio` to resolve a type conflict. The error message indicated that the property should be of type `AIStudio`.
+interface AIStudio {
+  hasSelectedApiKey: () => Promise<boolean>;
+  openSelectKey: () => Promise<void>;
+}
+
 declare global {
   interface Window {
     jspdf: any;
     html2canvas: any;
+    aistudio: AIStudio;
   }
 }
 
 const FilmIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-2.25-1.313M21 7.5v9l-2.25 1.313M3 7.5l2.25-1.313M3 7.5v9l2.25 1.313m18-13.5v13.5m-2.25-1.313L18.75 18m-1.5-1.313L15 18m-3-1.313L9.75 18m-1.5-1.313L6 18m-3 1.313V7.5m2.25-1.313L6 6m1.5 1.313L9.75 6m1.5 1.313L13.5 6m1.5 1.313L16.5 6m3-1.313-1.5 1.313" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5h18M3 16.5h18" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
     </svg>
 );
 
-function App() {
-  const [currentStoryboard, setCurrentStoryboard] = useState<Storyboard>(DEFAULT_STORYBOARD);
-  const [savedStoryboards, setSavedStoryboards] = useState<Storyboard[]>(() => {
-    try {
-      const stored = localStorage.getItem('storyboards');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error("Failed to load storyboards from local storage:", error);
-      return [];
-    }
-  });
-  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
+const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+);
 
-  const [draggedItem, setDraggedItem] = useState<Scene | null>(null);
-  const [dragOverSceneId, setDragOverSceneId] = useState<string | null>(null);
-  
+const FolderIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+    </svg>
+);
+
+const SaveIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 3.75V16.5a2.25 2.25 0 0 1-2.25 2.25H10.5v-1.5a1.5 1.5 0 0 0-1.5-1.5H7.5V3.75m9 0a2.25 2.25 0 0 0-2.25-2.25H8.25a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 8.25 19.5h2.25a1.5 1.5 0 0 0 1.5-1.5v-1.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75v1.5a1.5 1.5 0 0 0 1.5 1.5h.75a2.25 2.25 0 0 0 2.25-2.25V3.75Z" />
+    </svg>
+);
+
+const App: React.FC = () => {
+  const [storyboards, setStoryboards] = useState<Storyboard[]>([]);
+  const [currentStoryboard, setCurrentStoryboard] = useState<Storyboard>(DEFAULT_STORYBOARD);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
+  const [isCompilationModalOpen, setIsCompilationModalOpen] = useState(false);
+  const [compilationShots, setCompilationShots] = useState<{ imageUrl: string; title: string; vo: string; }[]>([]);
+
+  const [draggingScene, setDraggingScene] = useState<Scene | null>(null);
+  const [dragOverScene, setDragOverScene] = useState<Scene | null>(null);
+
   useEffect(() => {
     try {
-      localStorage.setItem('storyboards', JSON.stringify(savedStoryboards));
+        const savedStoryboards = localStorage.getItem('storyboards');
+        if (savedStoryboards) {
+            setStoryboards(JSON.parse(savedStoryboards));
+        }
+        const savedCurrent = localStorage.getItem('currentStoryboard');
+        if (savedCurrent) {
+            setCurrentStoryboard(JSON.parse(savedCurrent));
+        } else {
+            // Save the default one if nothing is there
+            localStorage.setItem('storyboards', JSON.stringify([DEFAULT_STORYBOARD]));
+            localStorage.setItem('currentStoryboard', JSON.stringify(DEFAULT_STORYBOARD));
+        }
     } catch (error) {
-        console.error("Failed to save storyboards to local storage:", error);
-        alert("Could not save the storyboard. Your browser's storage might be full.");
+        console.error("Failed to load from localStorage", error);
+        // If parsing fails, start fresh
+        saveStoryboard(DEFAULT_STORYBOARD);
+        setStoryboards([DEFAULT_STORYBOARD]);
+        setCurrentStoryboard(DEFAULT_STORYBOARD);
     }
-  }, [savedStoryboards]);
+    setIsLoading(false);
+  }, []);
 
+  const saveStoryboard = (storyboardToSave: Storyboard) => {
+    const updatedStoryboard = { ...storyboardToSave, lastModified: Date.now() };
+    const otherStoryboards = storyboards.filter(s => s.id !== updatedStoryboard.id);
+    const newStoryboards = [...otherStoryboards, updatedStoryboard];
+    
+    setStoryboards(newStoryboards);
+    setCurrentStoryboard(updatedStoryboard);
+
+    localStorage.setItem('storyboards', JSON.stringify(newStoryboards));
+    localStorage.setItem('currentStoryboard', JSON.stringify(updatedStoryboard));
+  };
+  
   const handleAddScene = (newSceneData: Omit<Scene, 'id'>) => {
     const newScene: Scene = {
       ...newSceneData,
-      id: `scene-${crypto.randomUUID()}`,
+      id: `scene-${crypto.randomUUID()}`
     };
-    setCurrentStoryboard(prev => ({
-      ...prev,
-      scenes: [...prev.scenes, newScene],
-      lastModified: Date.now(),
-    }));
+    const updatedStoryboard = { ...currentStoryboard, scenes: [...currentStoryboard.scenes, newScene] };
+    saveStoryboard(updatedStoryboard);
   };
 
-  const handleDeleteScene = (sceneId: string) => {
-    setCurrentStoryboard(prev => ({
-      ...prev,
-      scenes: prev.scenes.filter(scene => scene.id !== sceneId),
-      lastModified: Date.now(),
-    }));
-  };
-
-  const handleNewStoryboard = () => {
-    if (window.confirm("Are you sure you want to start a new storyboard? Any unsaved changes will be lost.")) {
-      setCurrentStoryboard(createNewStoryboard());
-    }
-  };
-
-  const handleSaveStoryboard = () => {
-    let storyboardToSave = { ...currentStoryboard, lastModified: Date.now() };
-
-    const isDefaultBoard = storyboardToSave.id === 'default';
-    const isUntitled = storyboardToSave.name === 'Untitled Storyboard';
-
-    if (isDefaultBoard || isUntitled) {
-      const suggestedName = isUntitled ? '' : storyboardToSave.name;
-      const name = window.prompt("Enter a name for your storyboard:", suggestedName);
-
-      if (!name || name.trim() === '') {
-        alert("Save cancelled. A name is required.");
-        return;
-      }
-      
-      storyboardToSave.name = name.trim();
-      if (isDefaultBoard) {
-        storyboardToSave.id = `storyboard-${crypto.randomUUID()}`;
-      }
-    }
-    
-    setCurrentStoryboard(storyboardToSave);
-
-    setSavedStoryboards(prev => {
-      const existingIndex = prev.findIndex(s => s.id === storyboardToSave.id);
-      
-      if (existingIndex > -1) {
-        const newSaved = [...prev];
-        newSaved[existingIndex] = storyboardToSave;
-        return newSaved;
-      } else {
-        return [...prev, storyboardToSave];
-      }
-    });
-
-    alert(`Storyboard "${storyboardToSave.name}" saved!`);
-  };
-
-  const handleLoadStoryboard = (storyboardId: string) => {
-    const storyboardToLoad = savedStoryboards.find(s => s.id === storyboardId);
-    if (storyboardToLoad) {
-      setCurrentStoryboard(storyboardToLoad);
-      setIsLoadModalOpen(false);
-    }
+  const handleDeleteScene = (id: string) => {
+    const updatedScenes = currentStoryboard.scenes.filter(scene => scene.id !== id);
+    const updatedStoryboard = { ...currentStoryboard, scenes: updatedScenes };
+    saveStoryboard(updatedStoryboard);
   };
   
-  const handleDeleteStoryboard = (storyboardId: string) => {
-    if (window.confirm("Are you sure you want to permanently delete this storyboard?")) {
-      const newSaved = savedStoryboards.filter(s => s.id !== storyboardId);
-      setSavedStoryboards(newSaved);
-      
-      if (currentStoryboard.id === storyboardId) {
-        setCurrentStoryboard(newSaved.length > 0 ? newSaved[0] : createNewStoryboard());
-      }
-    }
-  };
-
-  const handleExportPdf = async () => {
-    if (currentStoryboard.scenes.length === 0) {
-      alert("There are no scenes to export.");
-      return;
-    }
-    setIsExportingPdf(true);
-
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: 'a4',
-      });
-
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.top = '-9999px';
-      tempContainer.style.left = '0';
-      document.body.appendChild(tempContainer);
-
-      for (let i = 0; i < currentStoryboard.scenes.length; i++) {
-        const scene = currentStoryboard.scenes[i];
-        
-        const sceneHtml = `
-          <div style="background-color: #0f172a; color: #e2e8f0; padding: 40px; width: 842px; font-family: 'Poppins', sans-serif; box-sizing: border-box; min-height: 595px;">
-            <h2 style="font-size: 28px; font-weight: bold; margin: 0 0 24px 0; border-bottom: 1px solid #334155; padding-bottom: 12px; line-height: 1.2;">Scene ${i+1}: ${scene.title}</h2>
-            <div style="margin-bottom: 20px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin: 0 0 8px 0; letter-spacing: 0.5px;">Voiceover</h3>
-              <p style="font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${scene.vo || 'N/A'}</p>
-            </div>
-            <div style="margin-bottom: 24px;">
-              <h3 style="font-size: 16px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin: 0 0 8px 0; letter-spacing: 0.5px;">Description</h3>
-              <p style="font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${scene.description || 'N/A'}</p>
-            </div>
-            <h3 style="font-size: 16px; font-weight: 600; color: #94a3b8; text-transform: uppercase; margin: 0 0 12px 0; letter-spacing: 0.5px;">Shots</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
-              ${scene.shots.map(shot => `<div style="aspect-ratio: 16 / 9;"><img src="${shot.imageUrl}" style="width: 100%; height: 100%; border-radius: 8px; object-fit: cover;" crossOrigin="anonymous" /></div>`).join('')}
-            </div>
-          </div>
-        `;
-        tempContainer.innerHTML = sceneHtml;
-
-        const images = Array.from(tempContainer.querySelectorAll('img'));
-        await Promise.all(images.map(img => new Promise(resolve => {
-            if (img.complete) return resolve(true);
-            img.onload = resolve;
-            img.onerror = (e) => {
-              console.warn(`Could not load image ${img.src} for PDF export.`, e);
-              resolve(false);
-            }
-        })));
-        
-        const elementToCapture = tempContainer.children[0] as HTMLElement;
-        if (!elementToCapture) {
-            console.error("PDF Export: Could not find element to capture for scene", i);
-            continue;
-        }
-
-        const canvas = await window.html2canvas(elementToCapture, { 
-            useCORS: true, 
-            allowTaint: true,
-            scale: 2,
-            backgroundColor: '#0f172a'
-        });
-        const imgData = canvas.toDataURL('image/png');
-        
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        const ratio = canvasWidth / canvasHeight;
-        
-        let imgWidth = pageWidth;
-        let imgHeight = imgWidth / ratio;
-
-        if (imgHeight > pageHeight) {
-            imgHeight = pageHeight;
-            imgWidth = imgHeight * ratio;
-        }
-
-        const xOffset = (pageWidth - imgWidth) / 2;
-        const yOffset = (pageHeight - imgHeight) / 2;
-        
-        if (i > 0) {
-          doc.addPage();
-        }
-        doc.addImage(imgData, 'PNG', xOffset, yOffset, imgWidth, imgHeight);
-      }
-
-      doc.save(`${currentStoryboard.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_storyboard.pdf`);
-      document.body.removeChild(tempContainer);
-    } catch (error) {
-      console.error("Failed to export PDF:", error);
-      alert("An error occurred while exporting the PDF. Please check the console for details.");
-    } finally {
-      setIsExportingPdf(false);
+  const handleDuplicateScene = (id: string) => {
+    const sceneToDuplicate = currentStoryboard.scenes.find(scene => scene.id === id);
+    if (sceneToDuplicate) {
+      const duplicatedScene: Scene = {
+        ...sceneToDuplicate,
+        id: `scene-${crypto.randomUUID()}`,
+        title: `${sceneToDuplicate.title} (Copy)`,
+      };
+      const sceneIndex = currentStoryboard.scenes.findIndex(scene => scene.id === id);
+      const newScenes = [
+        ...currentStoryboard.scenes.slice(0, sceneIndex + 1),
+        duplicatedScene,
+        ...currentStoryboard.scenes.slice(sceneIndex + 1),
+      ];
+      const updatedStoryboard = { ...currentStoryboard, scenes: newScenes };
+      saveStoryboard(updatedStoryboard);
     }
   };
 
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, scene: Scene) => {
-    setDraggedItem(scene);
-    e.dataTransfer.effectAllowed = 'move';
+    setDraggingScene(scene);
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, targetScene: Scene) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, scene: Scene) => {
     e.preventDefault();
-    if (draggedItem?.id !== targetScene.id) {
-        setDragOverSceneId(targetScene.id);
+    if (draggingScene?.id !== scene.id) {
+        setDragOverScene(scene);
     }
   };
 
-  const handleDragLeave = () => {
-      setDragOverSceneId(null);
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDragOverScene(null);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetScene: Scene) => {
     e.preventDefault();
-    if (!draggedItem || draggedItem.id === targetScene.id) return;
+    if (!draggingScene) return;
 
-    const newScenes = [...currentStoryboard.scenes];
-    const draggedIndex = newScenes.findIndex(s => s.id === draggedItem.id);
-    const targetIndex = newScenes.findIndex(s => s.id === targetScene.id);
+    const scenes = [...currentStoryboard.scenes];
+    const draggingIndex = scenes.findIndex(s => s.id === draggingScene.id);
+    const targetIndex = scenes.findIndex(s => s.id === targetScene.id);
     
-    const [removed] = newScenes.splice(draggedIndex, 1);
-    newScenes.splice(targetIndex, 0, removed);
-
-    setCurrentStoryboard(prev => ({ ...prev, scenes: newScenes, lastModified: Date.now() }));
-    setDraggedItem(null);
-    setDragOverSceneId(null);
+    if (draggingIndex > -1 && targetIndex > -1) {
+      const [draggedItem] = scenes.splice(draggingIndex, 1);
+      scenes.splice(targetIndex, 0, draggedItem);
+      
+      const updatedStoryboard = { ...currentStoryboard, scenes };
+      saveStoryboard(updatedStoryboard);
+    }
+    
+    setDragOverScene(null);
+    setDraggingScene(null);
   };
 
-  const handleDragEnd = () => {
-    setDraggedItem(null);
-    setDragOverSceneId(null);
+  const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
+    setDragOverScene(null);
+    setDraggingScene(null);
   };
 
+  const handleExportToPDF = () => {
+    const storyboardElement = document.getElementById('storyboard-grid');
+    if (storyboardElement) {
+        const { jsPDF } = window.jspdf;
+        window.html2canvas(storyboardElement).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = pdf.internal.pageSize.getHeight();
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = canvasWidth / canvasHeight;
+            const width = pdfWidth;
+            const height = width / ratio;
+
+            // This is a rough estimation, you might need to split into multiple pages
+            // if the storyboard is very long.
+            if (height > pdfHeight) {
+                console.warn("Storyboard is too long for a single PDF page. Content might be cut.");
+            }
+
+            pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+            pdf.save(`${currentStoryboard.name.replace(/\s+/g, '_').toLowerCase()}.pdf`);
+        });
+    }
+  };
+
+  const handleLoadStoryboard = (id: string) => {
+    const storyboardToLoad = storyboards.find(s => s.id === id);
+    if (storyboardToLoad) {
+        setCurrentStoryboard(storyboardToLoad);
+        localStorage.setItem('currentStoryboard', JSON.stringify(storyboardToLoad));
+    }
+    setIsLoadModalOpen(false);
+  };
+
+  const handleDeleteStoryboard = (id: string) => {
+      const remainingStoryboards = storyboards.filter(s => s.id !== id);
+      setStoryboards(remainingStoryboards);
+      localStorage.setItem('storyboards', JSON.stringify(remainingStoryboards));
+      
+      // If we are deleting the current storyboard, load another one or create a new one
+      if (currentStoryboard.id === id) {
+          if (remainingStoryboards.length > 0) {
+              handleLoadStoryboard(remainingStoryboards[0].id);
+          } else {
+              const newStoryboard = createNewStoryboard();
+              saveStoryboard(newStoryboard);
+              setStoryboards([newStoryboard]);
+              setCurrentStoryboard(newStoryboard);
+          }
+      }
+  };
+
+  const handleMakeCompilation = () => {
+    if (currentStoryboard.scenes.length === 0) {
+      alert("Add some scenes to your storyboard first!");
+      return;
+    }
+  
+    const shotsForCompilation = currentStoryboard.scenes
+      .filter(scene => scene.shots.length > 0)
+      .map(scene => {
+        const randomShot = scene.shots[Math.floor(Math.random() * scene.shots.length)];
+        return {
+          imageUrl: randomShot.imageUrl,
+          title: scene.title,
+          vo: scene.vo,
+        };
+      });
+  
+    if (shotsForCompilation.length === 0) {
+      alert("None of your scenes have images to compile.");
+      return;
+    }
+  
+    setCompilationShots(shotsForCompilation);
+    setIsCompilationModalOpen(true);
+  };
+
+
+  if (isLoading) {
+      return <div className="min-h-screen flex items-center justify-center text-slate-400">Loading Storyboard...</div>;
+  }
 
   return (
     <>
-      <LoadStoryboardModal 
-        isOpen={isLoadModalOpen}
-        onClose={() => setIsLoadModalOpen(false)}
-        storyboards={savedStoryboards}
-        onLoad={handleLoadStoryboard}
-        onDelete={handleDeleteStoryboard}
-      />
-      <div className="min-h-screen font-sans">
-        <main className="max-w-4xl mx-auto px-4 py-8 md:py-16">
-          <header className="text-center mb-12">
-            <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                Storyboard Pro
-              </span>
-            </h1>
-            <p className="mt-3 text-lg text-slate-400 max-w-2xl mx-auto">Visualize your story, one scene at a time.</p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3 sm:gap-4">
-              <button onClick={handleNewStoryboard} className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors duration-200">New Storyboard</button>
-              <button onClick={handleSaveStoryboard} className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors duration-200">Save</button>
-              <button onClick={() => setIsLoadModalOpen(true)} className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors duration-200">Load</button>
-              <button 
-                onClick={handleExportPdf} 
-                disabled={isExportingPdf || currentStoryboard.scenes.length === 0}
-                className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/20"
-              >
-                {isExportingPdf ? 'Exporting...' : 'Export PDF'}
-              </button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black p-4 sm:p-8">
+        <div className="max-w-7xl mx-auto">
+          <header className="mb-12">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h1 className="text-4xl sm:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 tracking-tighter">
+                    Storyboard Pro
+                </h1>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <button onClick={handleMakeCompilation} className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 font-semibold py-2 px-4 rounded-lg transition-all hover:bg-cyan-500/20 hover:text-white hover:scale-105">
+                        <FilmIcon className="w-5 h-5" />
+                        <span>Make Compilation</span>
+                    </button>
+                    <button onClick={() => saveStoryboard(currentStoryboard)} className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors" aria-label="Save current storyboard">
+                        <SaveIcon className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setIsLoadModalOpen(true)} className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors" aria-label="Load a storyboard">
+                        <FolderIcon className="w-5 h-5" />
+                    </button>
+                    <button onClick={handleExportToPDF} className="p-2.5 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors" aria-label="Export to PDF">
+                        <DownloadIcon className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
+            <input 
+                type="text" 
+                value={currentStoryboard.name}
+                onChange={(e) => {
+                    const updated = {...currentStoryboard, name: e.target.value };
+                    setCurrentStoryboard(updated);
+                    // Debounce saving or save on blur
+                }}
+                onBlur={() => saveStoryboard(currentStoryboard)}
+                className="w-full sm:w-auto text-lg text-slate-400 bg-transparent border-none focus:ring-0 focus:text-slate-200 transition-colors mt-2 p-1 rounded"
+                aria-label="Storyboard name"
+            />
           </header>
-          
-          <AddSceneForm onAddScene={handleAddScene} />
 
-          <div className="border-t border-white/10 my-12"></div>
-
-          {currentStoryboard.scenes.length > 0 ? (
-            <div className="flex flex-col gap-8">
+          <main>
+            <AddSceneForm onAddScene={handleAddScene} />
+            
+            <div id="storyboard-grid" className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {currentStoryboard.scenes.map(scene => (
-                <SceneCard 
-                  key={scene.id} 
-                  scene={scene} 
-                  onDelete={handleDeleteScene} 
+                <SceneCard
+                  key={scene.id}
+                  scene={scene}
+                  onDelete={handleDeleteScene}
+                  onDuplicate={handleDuplicateScene}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   onDragEnd={handleDragEnd}
-                  isDragging={draggedItem?.id === scene.id}
-                  isDragOver={dragOverSceneId === scene.id && draggedItem?.id !== scene.id}
+                  isDragging={draggingScene?.id === scene.id}
+                  isDragOver={dragOverScene?.id === scene.id}
                 />
               ))}
             </div>
-          ) : (
-            <div className="text-center py-20 px-6 bg-white/[.03] backdrop-blur-xl rounded-3xl border border-white/10">
-              <div className="mx-auto w-fit bg-gradient-to-r from-cyan-500 to-blue-600 p-4 rounded-full shadow-lg shadow-cyan-500/20">
-                <FilmIcon className="w-10 h-10 text-white"/>
-              </div>
-              <h2 className="mt-6 text-3xl font-bold text-white">Create Your First Scene</h2>
-              <p className="mt-4 text-lg text-slate-400">Your storyboard is waiting. Use the form above to bring your vision to life.</p>
-            </div>
-          )}
-        </main>
+             {currentStoryboard.scenes.length === 0 && (
+                <div className="text-center py-16 px-8 bg-white/[.02] border-2 border-dashed border-white/10 rounded-3xl">
+                    <h2 className="text-2xl font-semibold text-slate-300">Your storyboard is empty.</h2>
+                    <p className="mt-2 text-slate-500">Use the form above to add your first scene.</p>
+                </div>
+            )}
+          </main>
+        </div>
       </div>
+      <LoadStoryboardModal
+        isOpen={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        storyboards={storyboards}
+        onLoad={handleLoadStoryboard}
+        onDelete={handleDeleteStoryboard}
+      />
+      <CompilationModal
+        isOpen={isCompilationModalOpen}
+        onClose={() => setIsCompilationModalOpen(false)}
+        shots={compilationShots}
+      />
     </>
   );
-}
+};
 
 export default App;

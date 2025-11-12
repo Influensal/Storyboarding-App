@@ -5,6 +5,7 @@ import ShotCarousel from './ShotCarousel';
 interface SceneCardProps {
   scene: Scene;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
   onDragStart: (e: React.DragEvent<HTMLDivElement>, scene: Scene) => void;
   onDragOver: (e: React.DragEvent<HTMLDivElement>, scene: Scene) => void;
   onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -20,6 +21,12 @@ const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
     </svg>
 );
 
+const DuplicateSceneIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+    </svg>
+);
+
 const DragHandleIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className={className}>
         <circle cx="9" cy="6" r="1.5" />
@@ -32,7 +39,7 @@ const DragHandleIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 
-const SceneCard: React.FC<SceneCardProps> = ({ scene, onDelete, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, isDragging, isDragOver }) => {
+const SceneCard: React.FC<SceneCardProps> = ({ scene, onDelete, onDuplicate, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, isDragging, isDragOver }) => {
   const cardClasses = `
     relative group bg-white/[.03] backdrop-blur-2xl rounded-3xl shadow-2xl shadow-black/30
     flex flex-col p-8 gap-6 border
@@ -52,15 +59,24 @@ const SceneCard: React.FC<SceneCardProps> = ({ scene, onDelete, onDragStart, onD
         onDrop={(e) => onDrop(e, scene)}
         onDragEnd={onDragEnd}
     >
-      <button
-        onClick={() => onDelete(scene.id)}
-        className="absolute top-6 right-6 bg-red-600/20 border border-red-500/30 text-red-300 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-red-600/50 hover:text-white hover:scale-110 focus:opacity-100 focus:outline-none"
-        aria-label={`Delete scene "${scene.title}"`}
-      >
-        <TrashIcon className="h-5 w-5" />
-      </button>
+      <div className="absolute top-6 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <button
+          onClick={() => onDuplicate(scene.id)}
+          className="bg-blue-600/20 border border-blue-500/30 text-blue-300 p-2 rounded-full transition-all duration-200 hover:bg-blue-600/50 hover:text-white hover:scale-110 focus:opacity-100 focus:outline-none"
+          aria-label={`Duplicate scene "${scene.title}"`}
+        >
+          <DuplicateSceneIcon className="h-5 w-5" />
+        </button>
+        <button
+          onClick={() => onDelete(scene.id)}
+          className="bg-red-600/20 border border-red-500/30 text-red-300 p-2 rounded-full transition-all duration-200 hover:bg-red-600/50 hover:text-white hover:scale-110 focus:opacity-100 focus:outline-none"
+          aria-label={`Delete scene "${scene.title}"`}
+        >
+          <TrashIcon className="h-5 w-5" />
+        </button>
+      </div>
 
-      <div className="flex items-center gap-4 pr-12">
+      <div className="flex items-center gap-4 pr-28">
         <div className="cursor-grab text-slate-500 hover:text-slate-300 transition-colors" aria-label="Drag to reorder">
             <DragHandleIcon className="h-6 w-6" />
         </div>
